@@ -16,6 +16,9 @@ import subprocess
 import os
 import re
 
+import tempfile
+import asyncio
+
 # Initialize FastAPI app
 app = FastAPI(
     title="Smart Contract Auditor",
@@ -37,106 +40,120 @@ app.add_middleware(
 # Initialize LLM service
 llm_service = LLMService()
 
+def get_declared_solc_version(file_content):
+    # Look for a line like: pragma solidity ^0.8.0;
+    m = re.search(r'^\s*pragma\s+solidity\s+([^;]+);', file_content, flags=re.MULTILINE)
+    if m:
+        version = m.group(1).strip()
+        if version.startswith('^'):
+            return version[1:]
+        else:
+            return version
+    return "0.8.0"  # Default fallback version
 
-def run_slither_analysis(file: UploadFile = File(...)) -> dict:
+async def run_slither_analysis(file: UploadFile = File(...), file_content: str = None) -> dict:
     """
     Run Slither static analysis on the Solidity code
     
-    TODO: MALTEEEE
-    
     Args:
-        solidity_code: The Solidity contract source code
+        file: The uploaded Solidity file
         
     Returns:
         Dictionary with Slither analysis results
     """
-    # PLACEHOLDER - Your friend will replace this with actual Slither integration
-
-    def get_declared_solc_version(filename):
-        # Look for a line like: pragma solidity ^0.8.0;
-        m = re.match(r'^\s*pragma\s+solidity\s+([^;]+);', filename, flags=re.MULTILINE)
-        if m:
-            if m.group(1).strip()[0] == '^':
-                return m.group(1).strip()[1:]
-            else:
-                return m.group(1).strip()
-        return None
-    
-    declared = get_declared_solc_version(file.filename)
-    print(declared)
-
-    # Inherit your current environment and add FORCE_COLOR
-    env = os.environ.copy()
-    env["FORCE_COLOR"] = "1"
-
-
-    # Set solc version
+    temp_file_path = None
     try:
-        result = subprocess.run(
-            ['solc-select', 'use', declared, '--always-install'],
-            capture_output=True,
-            text=True,
-            env=env,
-            check=True
-        )
+        # Use provided file content or read from file
+        if file_content is None:
+            file_content = await file.read()
+            
+            if isinstance(file_content, bytes):
+                file_content = file_content.decode('utf-8')
+            
+            # Reset file pointer for potential future use (if supported)
+            try:
+                await file.seek(0)
+            except Exception as e:
+                pass  # This is okay if file doesn't support seeking
+        
+        # Get solidity version from file content
+        declared = get_declared_solc_version(file_content)
 
-        print("=== STDOUT ===")
-        print(result.stdout or "[No stdout output]")
-        print("=== STDERR ===")
-        print(result.stderr or "[No stderr output]")
+        # Create a temporary file
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.sol', delete=False) as temp_file:
+            temp_file.write(file_content)
+            temp_file_path = temp_file.name
 
-    except subprocess.CalledProcessError as e:
-        print("❌ Error:", e.stderr)
+        # Inherit your current environment and add FORCE_COLOR
+        env = os.environ.copy()
+        env["FORCE_COLOR"] = "1"
 
-    try:
-        result = subprocess.run(
-            ['slither', file.filename, '--print', 'human-summary,contract-summary,data-dependency,inheritance,vars-and-auth,variable-order'],
-            capture_output=True,
-            text=True,
-            env=env,
-            check=True
-        )
-
-        print("=== STDOUT ===")
-        print(result.stdout or "[No stdout output]")
-        print("=== STDERR ===")
-        print(result.stderr or "[No stderr output]")
-
-    except subprocess.CalledProcessError as e:
-        print("❌ Error:", e.stderr)
-    
-
-
-    return {
-        "findings": [
-            {
-                "type": "reentrancy",
-                "severity": "HIGH", 
-                "description": "Potential reentrancy in withdraw function",
-                "line": 23,
-                "function": "withdraw"
+        # Set solc version
+        try:
+            result = subprocess.run(
+                ['solc-select', 'use', declared, '--always-install'],
+                capture_output=True,
+                text=True,
+                env=env,
+                check=True
+            )
+        except subprocess.CalledProcessError as e:
+            # Continue anyway, might still work
+            pass
+        
+        # Run Slither analysis
+        try:
+            result = subprocess.run(
+                ['slither', temp_file_path, '--print', 'human-summary,contract-summary,data-dependency,inheritance,vars-and-auth,variable-order'],
+                capture_output=True,
+                text=True,
+                env=env,
+                check=True
+            )
+            
+            return {
+                "status": "success",
+                "stdout": result.stdout,
+                "stderr": result.stderr,
+                "combined_output": result.stdout + result.stderr
             }
-        ],
-        "summary": "Placeholder Slither analysis - 1 high-severity issue found",
-        "severity_counts": {"HIGH": 1, "MEDIUM": 0, "LOW": 0}
-    }
+
+        except subprocess.CalledProcessError as e:
+            return {
+                "status": "error",
+                "error": e.stderr,
+                "stdout": e.stdout if hasattr(e, 'stdout') else "",
+                "stderr": e.stderr
+            }
+        except Exception as e:
+            return {
+                "status": "error",
+                "error": f"Unexpected error: {type(e).__name__}: {str(e)}",
+                "stdout": "",
+                "stderr": ""
+            }
+    
+    except Exception as e:
+        return {
+            "status": "error",
+            "error": str(e),
+            "stdout": "",
+            "stderr": ""
+        }
+    
+    finally:
+        # Clean up temporary file
+        if temp_file_path and os.path.exists(temp_file_path):
+            try:
+                os.unlink(temp_file_path)
+            except Exception as e:
+                pass
 
 
 @app.on_event("startup")
 async def startup_event():
     """Validate configuration and display startup information"""
-    print("🔧 Smart Contract Auditor - Backend Starting...")
-    print("-" * 50)
-    
-    if not settings.validate():
-        print("⚠️  Configuration validation failed!")
-        print("🚀 Server starting anyway for development...")
-    else:
-        print("✅ Configuration validated successfully")
-        print(f"🤖 Using primary model: {settings.PRIMARY_MODEL}")
-    
-    print(f"📊 LLM Service Available: {llm_service.is_available()}")
-    print("-" * 50)
+    settings.validate()
 
 
 @app.get("/")
@@ -176,31 +193,23 @@ async def analyze_contract(files: List[UploadFile] = File(...)):
         if len(files) > 10:
             raise HTTPException(status_code=400, detail="Maximum 10 files allowed per request")
         
-        print(f"📁 Analyzing {len(files)} files with complete pipeline...")
-        
         # Analyze each file using the complete pipeline
         individual_results = []
         all_vulnerabilities = []
         total_score = 0
         
         for idx, file in enumerate(files):
-            print(f"🔍 Analyzing file {idx + 1}/{len(files)}: {file.filename}")
-            
             try:
                 # Read and validate file
                 solidity_code = await read_uploaded_file(file)
-                print(f"✅ File validated: {file.filename} ({len(solidity_code)} characters)")
                 
                 # Run Slither analysis
-                print(f"🔧 Running Slither analysis on {file.filename}...")
-                slither_results = run_slither_analysis(solidity_code)
+                slither_results = await run_slither_analysis(file, solidity_code)
                 
                 # Run initial LLM analysis
-                print(f"🤖 Running initial LLM analysis on {file.filename}...")
                 first_llm_analysis = await llm_service.first_analysis(solidity_code)
                 
                 # Run final combined analysis
-                print(f"🔬 Running final combined analysis on {file.filename}...")
                 slither_data_str = json.dumps(slither_results)
                 final_analysis = await llm_service.final_analysis(slither_data_str, first_llm_analysis)
                 
@@ -229,10 +238,7 @@ async def analyze_contract(files: List[UploadFile] = File(...)):
                     }
                 })
                 
-                print(f"✅ Analysis complete for {file.filename}: Score {security_score}/100, {len(vulnerabilities)} vulnerabilities")
-                
             except Exception as e:
-                print(f"❌ Failed to analyze {file.filename}: {str(e)}")
                 individual_results.append({
                     "file_name": file.filename,
                     "error": str(e),
@@ -299,13 +305,11 @@ async def analyze_contract(files: List[UploadFile] = File(...)):
             }
         }
         
-        print("🎉 Complete analysis pipeline completed successfully!")
         return result
         
     except HTTPException:
         raise  # Re-raise HTTP exceptions as-is
     except Exception as e:
-        print(f"❌ Analysis failed: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Analysis failed: {str(e)}")
 
 
