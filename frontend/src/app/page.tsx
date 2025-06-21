@@ -220,7 +220,7 @@ export default function LandingPage() {
           )}
 
           {/* Important Notice */}
-          <div className="mt-8 p-4 bg-amber-50 border border-amber-200 rounded-lg">
+          {/* <div className="mt-8 p-4 bg-amber-50 border border-amber-200 rounded-lg">
             <div className="flex items-start space-x-3">
               <AlertTriangle className="h-5 w-5 text-amber-600 mt-0.5 flex-shrink-0" />
               <div>
@@ -232,7 +232,7 @@ export default function LandingPage() {
                 </p>
               </div>
             </div>
-          </div>
+          </div> */}
         </div>
       </section>
 
