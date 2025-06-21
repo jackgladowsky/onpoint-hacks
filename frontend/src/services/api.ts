@@ -31,6 +31,7 @@ export interface MultipleAnalysisResult {
     security_score: number;
     overall_risk: string;
     vulnerabilities: Vulnerability[];
+    vulnerability_count: number;
     risk_breakdown: {
       high: number;
       medium: number;

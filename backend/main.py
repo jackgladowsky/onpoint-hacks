@@ -102,9 +102,8 @@ async def analyze_contract(files: List[UploadFile] = File(...)):
     
     This endpoint handles the full analysis workflow:
     1. File upload and validation for multiple files
-    2. Combine all files into a single analysis context
-    3. Single LLM analysis of all files together
-    4. Return comprehensive vulnerability report for all files
+    2. Individual analysis of each file using Slither + LLM pipeline
+    3. Aggregate results and provide comprehensive vulnerability report
     
     Args:
         files: List of Solidity files (.sol) to analyze
@@ -117,45 +116,130 @@ async def analyze_contract(files: List[UploadFile] = File(...)):
         if len(files) > 10:
             raise HTTPException(status_code=400, detail="Maximum 10 files allowed per request")
         
-        print(f"📁 Reading and validating {len(files)} files...")
+        print(f"📁 Analyzing {len(files)} files with complete pipeline...")
         
-        # Step 1: Read and validate all uploaded files
-        file_contents = []
-        file_names = []
+        # Analyze each file using the complete pipeline
+        individual_results = []
+        all_vulnerabilities = []
+        total_score = 0
         
-        for file in files:
-            solidity_code = await read_uploaded_file(file)
-            file_contents.append(solidity_code)
-            file_names.append(file.filename)
-            print(f"✅ File validated: {file.filename} ({len(solidity_code)} characters)")
+        for idx, file in enumerate(files):
+            print(f"🔍 Analyzing file {idx + 1}/{len(files)}: {file.filename}")
+            
+            try:
+                # Read and validate file
+                solidity_code = await read_uploaded_file(file)
+                print(f"✅ File validated: {file.filename} ({len(solidity_code)} characters)")
+                
+                # Run Slither analysis
+                print(f"🔧 Running Slither analysis on {file.filename}...")
+                slither_results = run_slither_analysis(solidity_code)
+                
+                # Run initial LLM analysis
+                print(f"🤖 Running initial LLM analysis on {file.filename}...")
+                first_llm_analysis = await llm_service.first_analysis(solidity_code)
+                
+                # Run final combined analysis
+                print(f"🔬 Running final combined analysis on {file.filename}...")
+                slither_data_str = json.dumps(slither_results)
+                final_analysis = await llm_service.final_analysis(slither_data_str, first_llm_analysis)
+                
+                # Extract vulnerabilities
+                vulnerabilities = final_analysis.get("vulnerabilities", [])
+                security_score = final_analysis.get("security_score", 50)
+                
+                # Add file context to vulnerabilities
+                for vuln in vulnerabilities:
+                    vuln["file_name"] = file.filename
+                
+                all_vulnerabilities.extend(vulnerabilities)
+                total_score += security_score
+                
+                # Store individual result
+                individual_results.append({
+                    "file_name": file.filename,
+                    "security_score": security_score,
+                    "overall_risk": final_analysis.get("overall_risk", "MEDIUM"),
+                    "vulnerabilities": vulnerabilities,
+                    "vulnerability_count": len(vulnerabilities),
+                    "risk_breakdown": {
+                        "high": len([v for v in vulnerabilities if v.get("severity") == "HIGH"]),
+                        "medium": len([v for v in vulnerabilities if v.get("severity") == "MEDIUM"]),
+                        "low": len([v for v in vulnerabilities if v.get("severity") == "LOW"])
+                    }
+                })
+                
+                print(f"✅ Analysis complete for {file.filename}: Score {security_score}/100, {len(vulnerabilities)} vulnerabilities")
+                
+            except Exception as e:
+                print(f"❌ Failed to analyze {file.filename}: {str(e)}")
+                individual_results.append({
+                    "file_name": file.filename,
+                    "error": str(e),
+                    "security_score": 0,
+                    "overall_risk": "ERROR",
+                    "vulnerabilities": [],
+                    "vulnerability_count": 0,
+                    "risk_breakdown": {"high": 0, "medium": 0, "low": 0}
+                })
         
-        # Step 2: Combine all files for analysis
-        print("🔗 Combining files for analysis...")
-        combined_analysis = await llm_service.analyze_multiple_files(file_contents, file_names)
-        print("✅ Combined analysis complete")
+        # Calculate aggregate metrics
+        successful_analyses = [r for r in individual_results if "error" not in r]
+        average_score = total_score / len(successful_analyses) if successful_analyses else 0
         
-        # Step 3: Format and return results in the expected format
+        # Aggregate risk breakdown
+        total_risk_breakdown = {
+            "high": sum(r["risk_breakdown"]["high"] for r in individual_results),
+            "medium": sum(r["risk_breakdown"]["medium"] for r in individual_results),
+            "low": sum(r["risk_breakdown"]["low"] for r in individual_results)
+        }
+        
+        # Determine overall project risk
+        if total_risk_breakdown["high"] > 0:
+            overall_project_risk = "HIGH"
+        elif total_risk_breakdown["medium"] > 2:
+            overall_project_risk = "MEDIUM-HIGH"
+        elif total_risk_breakdown["medium"] > 0:
+            overall_project_risk = "MEDIUM"
+        elif total_risk_breakdown["low"] > 2:
+            overall_project_risk = "LOW-MEDIUM"
+        else:
+            overall_project_risk = "LOW"
+        
+        # Generate summary report
+        summary_report = f"""Analysis Summary:
+- Analyzed {len(files)} contracts using complete pipeline (Slither + LLM)
+- Average Security Score: {average_score:.1f}/100
+- Overall Project Risk: {overall_project_risk}
+- Total Vulnerabilities: {len(all_vulnerabilities)}
+  - High: {total_risk_breakdown['high']}
+  - Medium: {total_risk_breakdown['medium']}
+  - Low: {total_risk_breakdown['low']}
+"""
+        
+        # Format and return results in the expected format
         result = {
-            "summary": combined_analysis.get("summary", "Analysis completed"),
+            "summary": summary_report,
             "project_metrics": {
                 "total_files": len(files),
-                "successful_analyses": len(files),
-                "failed_analyses": 0,
-                "average_security_score": combined_analysis.get("average_security_score", 50),
-                "overall_project_risk": combined_analysis.get("overall_risk", "MEDIUM"),
-                "total_vulnerabilities": len(combined_analysis.get("all_vulnerabilities", [])),
-                "aggregate_risk_breakdown": combined_analysis.get("risk_breakdown", {"high": 0, "medium": 0, "low": 0})
+                "successful_analyses": len(successful_analyses),
+                "failed_analyses": len(files) - len(successful_analyses),
+                "average_security_score": round(average_score, 1),
+                "overall_project_risk": overall_project_risk,
+                "total_vulnerabilities": len(all_vulnerabilities),
+                "aggregate_risk_breakdown": total_risk_breakdown
             },
-            "individual_results": combined_analysis.get("individual_results", []),
-            "all_vulnerabilities": combined_analysis.get("all_vulnerabilities", []),
+            "individual_results": individual_results,
+            "all_vulnerabilities": all_vulnerabilities,
             "timestamp": datetime.now().isoformat(),
             "analysis_details": {
                 "llm_model_used": settings.PRIMARY_MODEL,
-                "files_analyzed": file_names
+                "files_analyzed": [f.filename for f in files],
+                "analysis_type": "complete_pipeline"
             }
         }
         
-        print("🎉 Analysis pipeline completed successfully!")
+        print("🎉 Complete analysis pipeline completed successfully!")
         return result
         
     except HTTPException:
