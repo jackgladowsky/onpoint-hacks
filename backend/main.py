@@ -11,6 +11,10 @@ from config import settings
 from services.llm_service import LLMService
 from utils.file_utils import read_uploaded_file
 
+import subprocess
+import os
+import re
+
 # Initialize FastAPI app
 app = FastAPI(
     title="Smart Contract Auditor",
@@ -46,6 +50,62 @@ def run_slither_analysis(solidity_code: str) -> dict:
         Dictionary with Slither analysis results
     """
     # PLACEHOLDER - Your friend will replace this with actual Slither integration
+
+    def get_declared_solc_version(contents):
+        # Look for a line like: pragma solidity ^0.8.0;
+        m = re.match(r'^\s*pragma\s+solidity\s+([^;]+);', contents, flags=re.MULTILINE)
+        if m:
+            if m.group(1).strip()[0] == '^':
+                return m.group(1).strip()[1:]
+            else:
+                return m.group(1).strip()
+        return None
+    
+    declared = get_declared_solc_version(solidity_code)
+    print(declared)
+
+    # Inherit your current environment and add FORCE_COLOR
+    env = os.environ.copy()
+    env["FORCE_COLOR"] = "1"
+
+
+    # Set solc version
+    try:
+        result = subprocess.run(
+            ['solc-select', 'use', declared, '--always-install'],
+            capture_output=True,
+            text=True,
+            env=env,
+            check=True
+        )
+
+        print("=== STDOUT ===")
+        print(result.stdout or "[No stdout output]")
+        print("=== STDERR ===")
+        print(result.stderr or "[No stderr output]")
+
+    except subprocess.CalledProcessError as e:
+        print("❌ Error:", e.stderr)
+
+    try:
+        result = subprocess.run(
+            ['slither', filename, '--print', 'human-summary,contract-summary,data-dependency,inheritance,vars-and-auth,variable-order'],
+            capture_output=True,
+            text=True,
+            env=env,
+            check=True
+        )
+
+        print("=== STDOUT ===")
+        print(result.stdout or "[No stdout output]")
+        print("=== STDERR ===")
+        print(result.stderr or "[No stderr output]")
+
+    except subprocess.CalledProcessError as e:
+        print("❌ Error:", e.stderr)
+    
+
+
     return {
         "findings": [
             {
@@ -119,7 +179,7 @@ async def analyze_contract(file: UploadFile = File(...)):
         
         # Step 2: Run Slither static analysis
         print("🔍 Running Slither static analysis...")
-        slither_results = run_slither_analysis(solidity_code)
+        slither_results = run_slither_analysis(file)
         print(f"✅ Slither analysis complete: {slither_results['summary']}")
         
         # Step 3: Run initial LLM analysis on the code
