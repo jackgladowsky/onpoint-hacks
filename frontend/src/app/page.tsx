@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -9,6 +10,7 @@ import { FileUpload } from "@/components/file-upload"
 
 export default function LandingPage() {
   const [uploadedFiles, setUploadedFiles] = useState<File[]>([])
+  const router = useRouter()
   const MAX_FILES = 10
   const MAX_TOTAL_SIZE = 10 * 1024 * 1024 // 10MB
 
@@ -36,8 +38,9 @@ export default function LandingPage() {
 
   const startAnalysis = () => {
     if (uploadedFiles.length > 0) {
-      // Here you would typically navigate to analysis page or start the process
-      console.log("Starting analysis for:", uploadedFiles.map(f => f.name))
+      // Navigate to analysis page with file information
+      const fileNames = uploadedFiles.map(f => f.name).join(',')
+      router.push(`/analysis?files=${encodeURIComponent(fileNames)}`)
     }
   }
 
@@ -197,7 +200,7 @@ export default function LandingPage() {
             <div className="mt-6 flex flex-col items-center">
               <div className="w-full max-w-lg">
                 <ul className="divide-y divide-slate-200">
-                  {uploadedFiles.map((file, idx) => (
+                  {uploadedFiles.map((file) => (
                     <li key={file.name + file.size} className="flex items-center justify-between py-2">
                       <div className="flex items-center space-x-2">
                         <FileText className="h-5 w-5 text-emerald-600" />
