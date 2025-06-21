@@ -1,5 +1,13 @@
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
+export interface CodeFix {
+  vulnerability_title: string;
+  vulnerable_code: string;
+  fixed_code: string;
+  explanation: string;
+  line_numbers: number[];
+}
+
 export interface Vulnerability {
   title: string;
   severity: string;
@@ -9,6 +17,7 @@ export interface Vulnerability {
   line_numbers: number[];
   type: string;
   file_name: string;
+  code_fix?: CodeFix;
 }
 
 export interface MultipleAnalysisResult {

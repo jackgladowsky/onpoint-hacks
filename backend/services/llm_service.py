@@ -234,14 +234,14 @@ Return ONLY valid JSON in this exact format:
 
     async def analyze_multiple_files(self, file_contents: list, file_names: list) -> Dict:
         """
-        Analyze multiple files in a single LLM call by concatenating them
+        Analyze multiple files and provide comprehensive analysis
         
         Args:
             file_contents: List of Solidity code strings
             file_names: List of corresponding file names
             
         Returns:
-            Combined analysis results for all files
+            Comprehensive analysis results for all files
         """
         if not self.client:
             raise HTTPException(
@@ -249,98 +249,63 @@ Return ONLY valid JSON in this exact format:
                 detail="LLM service unavailable - API key not configured"
             )
         
-        # Concatenate all files with clear separators
-        combined_code = ""
-        for i, (file_name, code) in enumerate(zip(file_names, file_contents)):
-            combined_code += f"\n\n{'='*60}\n"
-            combined_code += f"FILE {i+1}: {file_name}\n"
-            combined_code += f"{'='*60}\n\n"
-            combined_code += code
+        # Combine all files for analysis context
+        combined_content = ""
+        for i, (content, name) in enumerate(zip(file_contents, file_names)):
+            combined_content += f"\n\n// === FILE {i+1}: {name} ===\n{content}"
         
         prompt = f"""
-You are a security expert analyzing multiple Solidity smart contracts as a cohesive project.
+You are a senior smart contract security auditor analyzing multiple Solidity files in a project.
 
-Analyze the following Solidity contracts for security vulnerabilities and provide both individual file analysis and project-level insights:
+FILES TO ANALYZE:
+{combined_content}
 
-{combined_code}
+Provide a comprehensive security analysis considering:
+1. Individual file vulnerabilities
+2. Cross-contract interactions and dependencies
+3. Overall project security posture
+4. Business logic flaws
+5. Best practice violations
 
-ANALYSIS REQUIREMENTS:
-1. Analyze each file individually for vulnerabilities
-2. Look for cross-contract vulnerabilities and interactions
-3. Provide project-level risk assessment
-4. Focus on:
-   - Reentrancy attacks
-   - Integer overflow/underflow  
-   - Access control issues
-   - Gas optimization problems
-   - Logic errors
-   - Best practice violations
-   - Cross-contract interaction issues
-
-SCORING CRITERIA (per file):
-- Reentrancy vulnerabilities: -25 points
-- Access control issues: -20 points  
-- Integer overflow/underflow: -15 points
-- Gas abuse/DOS: -10 points
-- Logic errors: -10 points
-- Best practice violations: -5 points each
+For EACH file, identify vulnerabilities and provide detailed analysis.
 
 Return ONLY valid JSON in this exact format:
 {{
-    "summary": "Executive summary of the entire project's security posture",
+    "summary": "Executive summary of the entire project's security status",
+    "average_security_score": 75, 
     "overall_risk": "HIGH/MEDIUM/LOW",
-    "average_security_score": 75,
-    "risk_breakdown": {{
-        "high": 2,
-        "medium": 3,
-        "low": 1
-    }},
+    "total_vulnerabilities": 5,
+    "risk_breakdown": {{"high": 2, "medium": 2, "low": 1}},
     "individual_results": [
         {{
-            "file_name": "Token.sol",
-            "security_score": 75,
-            "overall_risk": "MEDIUM",
+            "file_name": "Contract1.sol",
+            "security_score": 80,
+            "overall_risk": "MEDIUM", 
+            "vulnerability_count": 2,
+            "risk_breakdown": {{"high": 0, "medium": 1, "low": 1}},
             "vulnerabilities": [
                 {{
                     "title": "Vulnerability name",
                     "severity": "HIGH/MEDIUM/LOW",
                     "description": "Detailed explanation",
                     "fix_suggestion": "Specific code fix",
-                    "score_impact": -25,
                     "line_numbers": [23, 24],
-                    "type": "reentrancy/access_control/etc",
-                    "file_name": "Token.sol"
+                    "type": "reentrancy/access_control/etc"
                 }}
-            ],
-            "risk_breakdown": {{
-                "high": 1,
-                "medium": 1,
-                "low": 0
-            }}
+            ]
         }}
     ],
     "all_vulnerabilities": [
         {{
-            "title": "Vulnerability name",
-            "severity": "HIGH/MEDIUM/LOW",
-            "description": "Detailed explanation",
-            "fix_suggestion": "Specific code fix",
-            "score_impact": -25,
-            "line_numbers": [23, 24],
-            "type": "reentrancy/access_control/etc",
-            "file_name": "Token.sol"
-        }}
-    ],
-    "cross_contract_issues": [
-        {{
             "title": "Cross-contract vulnerability",
-            "description": "Issue involving multiple contracts",
-            "affected_files": ["Token.sol", "Staking.sol"],
-            "severity": "HIGH/MEDIUM/LOW",
-            "fix_suggestion": "How to fix across contracts"
+            "severity": "HIGH",
+            "description": "Issue affecting multiple contracts",
+            "fix_suggestion": "How to fix this issue",
+            "file_name": "Contract1.sol",
+            "line_numbers": [15, 16],
+            "type": "access_control"
         }}
-    ],
-    "recommendations": ["Project-level recommendations"]
+    ]
 }}
 """
         
@@ -348,21 +313,19 @@ Return ONLY valid JSON in this exact format:
             response = self.client.chat.completions.create(
                 model=settings.PRIMARY_MODEL,
                 messages=[{"role": "user", "content": prompt}],
-                max_tokens=settings.MAX_TOKENS_FINAL_ANALYSIS * 2,  # Double the tokens for multiple files
+                max_tokens=settings.MAX_TOKENS_FINAL_ANALYSIS,
                 temperature=settings.TEMPERATURE
             )
             
-            # Parse and validate JSON response
             result = self._parse_json_response(response.choices[0].message.content)
             return result
             
         except Exception as e:
-            # Try fallback model
             try:
                 response = self.client.chat.completions.create(
                     model=settings.FALLBACK_MODEL,
                     messages=[{"role": "user", "content": prompt}],
-                    max_tokens=settings.MAX_TOKENS_FINAL_ANALYSIS * 2,
+                    max_tokens=settings.MAX_TOKENS_FINAL_ANALYSIS,
                     temperature=settings.TEMPERATURE
                 )
                 result = self._parse_json_response(response.choices[0].message.content)
@@ -370,5 +333,89 @@ Return ONLY valid JSON in this exact format:
             except Exception:
                 raise HTTPException(
                     status_code=500, 
-                    detail=f"Multiple file analysis failed: {str(e)}"
-                ) 
+                    detail=f"Multi-file analysis failed: {str(e)}"
+                )
+
+    async def generate_code_fixes(self, solidity_code: str, vulnerability: Dict) -> Dict:
+        """
+        Generate vulnerable code snippet and fix for specific vulnerability
+        
+        Args:
+            solidity_code: The original Solidity contract code
+            vulnerability: Vulnerability details from analysis
+            
+        Returns:
+            Dict containing vulnerable code snippet and fix snippet
+        """
+        if not self.client:
+            raise HTTPException(
+                status_code=503, 
+                detail="LLM service unavailable - API key not configured"
+            )
+        
+        vulnerability_info = f"""
+Title: {vulnerability.get('title', 'Unknown')}
+Type: {vulnerability.get('type', 'unknown')}
+Severity: {vulnerability.get('severity', 'UNKNOWN')}
+Description: {vulnerability.get('description', 'No description')}
+Line Numbers: {vulnerability.get('line_numbers', [])}
+"""
+
+        prompt = f"""
+You are a smart contract security expert. Given a vulnerability in Solidity code, extract the vulnerable code snippet and provide a clean fix.
+
+ORIGINAL CONTRACT:
+{solidity_code}
+
+VULNERABILITY DETAILS:
+{vulnerability_info}
+
+Extract the vulnerable code section and provide a fixed version that users can copy.
+
+Return ONLY valid JSON in this exact format:
+{{
+    "vulnerability_title": "{vulnerability.get('title', 'Unknown Vulnerability')}",
+    "vulnerable_code": "// Vulnerable code snippet (10-15 lines max)\\nfunction withdraw() public {{\\n    // vulnerable implementation\\n}}",
+    "fixed_code": "// Fixed code snippet (10-15 lines max)\\nfunction withdraw() public {{\\n    // secure implementation with proper checks\\n}}",
+    "explanation": "Brief explanation of what was changed and why the fix works",
+    "line_numbers": {vulnerability.get('line_numbers', [])}
+}}
+
+GUIDELINES:
+- Keep code snippets concise (10-15 lines max)
+- Include necessary context but focus on the vulnerability
+- Show clear before/after comparison
+- Use proper Solidity syntax
+- Add helpful comments in the fixed version
+"""
+        
+        try:
+            response = self.client.chat.completions.create(
+                model=settings.PRIMARY_MODEL,
+                messages=[{"role": "user", "content": prompt}],
+                max_tokens=1500,  # Shorter for code snippets
+                temperature=0.1   # Lower temperature for more consistent code
+            )
+            
+            result = self._parse_json_response(response.choices[0].message.content)
+            return result
+            
+        except Exception as e:
+            try:
+                response = self.client.chat.completions.create(
+                    model=settings.FALLBACK_MODEL,
+                    messages=[{"role": "user", "content": prompt}],
+                    max_tokens=1500,
+                    temperature=0.1
+                )
+                result = self._parse_json_response(response.choices[0].message.content)
+                return result
+            except Exception:
+                # Return fallback response if LLM fails
+                return {
+                    "vulnerability_title": vulnerability.get('title', 'Unknown Vulnerability'),
+                    "vulnerable_code": "// Code snippet unavailable - LLM service error",
+                    "fixed_code": "// Fix unavailable - LLM service error", 
+                    "explanation": "Unable to generate code fix due to service error",
+                    "line_numbers": vulnerability.get('line_numbers', [])
+                } 

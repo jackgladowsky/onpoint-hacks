@@ -12,13 +12,6 @@ from config import settings
 from services.llm_service import LLMService
 from utils.file_utils import read_uploaded_file
 
-import subprocess
-import os
-import re
-
-import tempfile
-import asyncio
-
 # Initialize FastAPI app
 app = FastAPI(
     title="Smart Contract Auditor",
@@ -40,120 +33,50 @@ app.add_middleware(
 # Initialize LLM service
 llm_service = LLMService()
 
-def get_declared_solc_version(file_content):
-    # Look for a line like: pragma solidity ^0.8.0;
-    m = re.search(r'^\s*pragma\s+solidity\s+([^;]+);', file_content, flags=re.MULTILINE)
-    if m:
-        version = m.group(1).strip()
-        if version.startswith('^'):
-            return version[1:]
-        else:
-            return version
-    return "0.8.0"  # Default fallback version
 
-async def run_slither_analysis(file: UploadFile = File(...), file_content: str = None) -> dict:
+def run_slither_analysis(solidity_code) -> dict:
     """
     Run Slither static analysis on the Solidity code
     
+    TODO: MALTEEEE
+    
     Args:
-        file: The uploaded Solidity file
+        solidity_code: The Solidity contract source code
         
     Returns:
         Dictionary with Slither analysis results
     """
-    temp_file_path = None
-    try:
-        # Use provided file content or read from file
-        if file_content is None:
-            file_content = await file.read()
-            
-            if isinstance(file_content, bytes):
-                file_content = file_content.decode('utf-8')
-            
-            # Reset file pointer for potential future use (if supported)
-            try:
-                await file.seek(0)
-            except Exception as e:
-                pass  # This is okay if file doesn't support seeking
-        
-        # Get solidity version from file content
-        declared = get_declared_solc_version(file_content)
-
-        # Create a temporary file
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.sol', delete=False) as temp_file:
-            temp_file.write(file_content)
-            temp_file_path = temp_file.name
-
-        # Inherit your current environment and add FORCE_COLOR
-        env = os.environ.copy()
-        env["FORCE_COLOR"] = "1"
-
-        # Set solc version
-        try:
-            result = subprocess.run(
-                ['solc-select', 'use', declared, '--always-install'],
-                capture_output=True,
-                text=True,
-                env=env,
-                check=True
-            )
-        except subprocess.CalledProcessError as e:
-            # Continue anyway, might still work
-            pass
-        
-        # Run Slither analysis
-        try:
-            result = subprocess.run(
-                ['slither', temp_file_path, '--print', 'human-summary,contract-summary,data-dependency,inheritance,vars-and-auth,variable-order'],
-                capture_output=True,
-                text=True,
-                env=env,
-                check=True
-            )
-            
-            return {
-                "status": "success",
-                "stdout": result.stdout,
-                "stderr": result.stderr,
-                "combined_output": result.stdout + result.stderr
+    # PLACEHOLDER - Your friend will replace this with actual Slither integration
+    return {
+        "findings": [
+            {
+                "type": "reentrancy",
+                "severity": "HIGH", 
+                "description": "Potential reentrancy in withdraw function",
+                "line": 23,
+                "function": "withdraw"
             }
-
-        except subprocess.CalledProcessError as e:
-            return {
-                "status": "error",
-                "error": e.stderr,
-                "stdout": e.stdout if hasattr(e, 'stdout') else "",
-                "stderr": e.stderr
-            }
-        except Exception as e:
-            return {
-                "status": "error",
-                "error": f"Unexpected error: {type(e).__name__}: {str(e)}",
-                "stdout": "",
-                "stderr": ""
-            }
-    
-    except Exception as e:
-        return {
-            "status": "error",
-            "error": str(e),
-            "stdout": "",
-            "stderr": ""
-        }
-    
-    finally:
-        # Clean up temporary file
-        if temp_file_path and os.path.exists(temp_file_path):
-            try:
-                os.unlink(temp_file_path)
-            except Exception as e:
-                pass
+        ],
+        "summary": "Placeholder Slither analysis - 1 high-severity issue found",
+        "severity_counts": {"HIGH": 1, "MEDIUM": 0, "LOW": 0}
+    }
 
 
 @app.on_event("startup")
 async def startup_event():
     """Validate configuration and display startup information"""
-    settings.validate()
+    print("🔧 Smart Contract Auditor - Backend Starting...")
+    print("-" * 50)
+    
+    if not settings.validate():
+        print("⚠️  Configuration validation failed!")
+        print("🚀 Server starting anyway for development...")
+    else:
+        print("✅ Configuration validated successfully")
+        print(f"🤖 Using primary model: {settings.PRIMARY_MODEL}")
+    
+    print(f"📊 LLM Service Available: {llm_service.is_available()}")
+    print("-" * 50)
 
 
 @app.get("/")
@@ -179,8 +102,10 @@ async def analyze_contract(files: List[UploadFile] = File(...)):
     
     This endpoint handles the full analysis workflow:
     1. File upload and validation for multiple files
-    2. Individual analysis of each file using Slither + LLM pipeline
-    3. Aggregate results and provide comprehensive vulnerability report
+    2. Combine all files into a single analysis context
+    3. Single LLM analysis of all files together
+    4. Generate code fixes for each vulnerability found
+    5. Return comprehensive vulnerability report for all files
     
     Args:
         files: List of Solidity files (.sol) to analyze
@@ -193,18 +118,147 @@ async def analyze_contract(files: List[UploadFile] = File(...)):
         if len(files) > 10:
             raise HTTPException(status_code=400, detail="Maximum 10 files allowed per request")
         
-        # Analyze each file using the complete pipeline
+        print(f"📁 Reading and validating {len(files)} files...")
+        
+        # Step 1: Read and validate all uploaded files
+        file_contents = []
+        file_names = []
+        
+        for file in files:
+            solidity_code = await read_uploaded_file(file)
+            file_contents.append(solidity_code)
+            file_names.append(file.filename)
+            print(f"✅ File validated: {file.filename} ({len(solidity_code)} characters)")
+        
+        # Step 2: Combine all files for analysis
+        print("🔗 Combining files for analysis...")
+        combined_analysis = await llm_service.analyze_multiple_files(file_contents, file_names)
+        print("✅ Combined analysis complete")
+        
+        # Step 3: Generate code fixes for each vulnerability
+        print("🔧 Generating code fixes for vulnerabilities...")
+        updated_results = []
+        
+        for file_result in combined_analysis.get("individual_results", []):
+            updated_vulnerabilities = []
+            
+            # Find the corresponding file content
+            file_name = file_result.get("file_name", "")
+            file_content = ""
+            for i, name in enumerate(file_names):
+                if name == file_name:
+                    file_content = file_contents[i]
+                    break
+            
+            for vulnerability in file_result.get("vulnerabilities", []):
+                try:
+                    print(f"  🔍 Generating fix for: {vulnerability.get('title', 'Unknown')} in {file_name}")
+                    code_fix = await llm_service.generate_code_fixes(file_content, vulnerability)
+                    vulnerability["code_fix"] = code_fix
+                    print(f"  ✅ Code fix generated for: {vulnerability.get('title', 'Unknown')}")
+                except Exception as e:
+                    print(f"  ⚠️ Failed to generate code fix for {vulnerability.get('title', 'Unknown')}: {str(e)}")
+                    # Continue without code fix if generation fails
+                
+                updated_vulnerabilities.append(vulnerability)
+            
+            file_result["vulnerabilities"] = updated_vulnerabilities
+            updated_results.append(file_result)
+        
+        # Also generate code fixes for all_vulnerabilities
+        updated_all_vulnerabilities = []
+        for vulnerability in combined_analysis.get("all_vulnerabilities", []):
+            # Find the corresponding file content
+            file_name = vulnerability.get("file_name", "")
+            file_content = ""
+            for i, name in enumerate(file_names):
+                if name == file_name:
+                    file_content = file_contents[i]
+                    break
+            
+            if file_content:  # Only generate if we found the file
+                try:
+                    code_fix = await llm_service.generate_code_fixes(file_content, vulnerability)
+                    vulnerability["code_fix"] = code_fix
+                except Exception as e:
+                    print(f"  ⚠️ Failed to generate code fix for {vulnerability.get('title', 'Unknown')}: {str(e)}")
+            
+            updated_all_vulnerabilities.append(vulnerability)
+        
+        combined_analysis["individual_results"] = updated_results
+        combined_analysis["all_vulnerabilities"] = updated_all_vulnerabilities
+        
+        print("✅ Code fixes generation complete")
+        
+        # Step 4: Format and return results in the expected format
+        result = {
+            "summary": combined_analysis.get("summary", "Analysis completed"),
+            "project_metrics": {
+                "total_files": len(files),
+                "successful_analyses": len(files),
+                "failed_analyses": 0,
+                "average_security_score": combined_analysis.get("average_security_score", 50),
+                "overall_project_risk": combined_analysis.get("overall_risk", "MEDIUM"),
+                "total_vulnerabilities": len(combined_analysis.get("all_vulnerabilities", [])),
+                "aggregate_risk_breakdown": combined_analysis.get("risk_breakdown", {"high": 0, "medium": 0, "low": 0})
+            },
+            "individual_results": combined_analysis.get("individual_results", []),
+            "all_vulnerabilities": combined_analysis.get("all_vulnerabilities", []),
+            "timestamp": datetime.now().isoformat(),
+            "analysis_details": {
+                "llm_model_used": settings.PRIMARY_MODEL,
+                "files_analyzed": file_names
+            }
+        }
+        
+        print("🎉 Analysis pipeline with code fixes completed successfully!")
+        return result
+        
+    except HTTPException:
+        raise  # Re-raise HTTP exceptions as-is
+    except Exception as e:
+        print(f"❌ Analysis failed: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Analysis failed: {str(e)}")
+
+
+@app.post("/analyze-multiple")
+async def analyze_multiple_contracts(files: List[UploadFile] = File(...)):
+    """
+    Analyze multiple smart contracts in a single request
+    
+    This endpoint handles the analysis of multiple contracts:
+    1. Validates all uploaded files
+    2. Analyzes each contract individually
+    3. Provides a combined risk assessment
+    4. Returns individual and aggregate results
+    
+    Args:
+        files: List of Solidity files (.sol) to analyze
+        
+    Returns:
+        Comprehensive analysis results for all contracts with aggregate metrics
+    """
+    try:
+        # Validate number of files
+        if len(files) > 10:
+            raise HTTPException(status_code=400, detail="Maximum 10 files allowed per request")
+        
+        print(f"📁 Analyzing {len(files)} files...")
+        
+        # Analyze each file
         individual_results = []
         all_vulnerabilities = []
         total_score = 0
         
         for idx, file in enumerate(files):
+            print(f"🔍 Analyzing file {idx + 1}/{len(files)}: {file.filename}")
+            
             try:
                 # Read and validate file
                 solidity_code = await read_uploaded_file(file)
                 
                 # Run Slither analysis
-                slither_results = await run_slither_analysis(file, solidity_code)
+                slither_results = run_slither_analysis(solidity_code)
                 
                 # Run initial LLM analysis
                 first_llm_analysis = await llm_service.first_analysis(solidity_code)
@@ -239,6 +293,7 @@ async def analyze_contract(files: List[UploadFile] = File(...)):
                 })
                 
             except Exception as e:
+                print(f"❌ Failed to analyze {file.filename}: {str(e)}")
                 individual_results.append({
                     "file_name": file.filename,
                     "error": str(e),
@@ -273,17 +328,16 @@ async def analyze_contract(files: List[UploadFile] = File(...)):
             overall_project_risk = "LOW"
         
         # Generate summary report
-        summary_report = f"""Analysis Summary:
-        - Analyzed {len(files)} contracts using complete pipeline (Slither + LLM)
-        - Average Security Score: {average_score:.1f}/100
-        - Overall Project Risk: {overall_project_risk}
-        - Total Vulnerabilities: {len(all_vulnerabilities)}
-        - High: {total_risk_breakdown['high']}
-        - Medium: {total_risk_breakdown['medium']}
-        - Low: {total_risk_breakdown['low']}
-        """
+        summary_report = f"""Project Analysis Summary:
+- Analyzed {len(files)} contracts
+- Average Security Score: {average_score:.1f}/100
+- Overall Project Risk: {overall_project_risk}
+- Total Vulnerabilities: {len(all_vulnerabilities)}
+  - High: {total_risk_breakdown['high']}
+  - Medium: {total_risk_breakdown['medium']}
+  - Low: {total_risk_breakdown['low']}
+"""
         
-        # Format and return results in the expected format
         result = {
             "summary": summary_report,
             "project_metrics": {
@@ -300,17 +354,18 @@ async def analyze_contract(files: List[UploadFile] = File(...)):
             "timestamp": datetime.now().isoformat(),
             "analysis_details": {
                 "llm_model_used": settings.PRIMARY_MODEL,
-                "files_analyzed": [f.filename for f in files],
-                "analysis_type": "complete_pipeline"
+                "files_analyzed": [f.filename for f in files]
             }
         }
         
+        print("🎉 Multi-file analysis completed successfully!")
         return result
         
     except HTTPException:
-        raise  # Re-raise HTTP exceptions as-is
+        raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Analysis failed: {str(e)}")
+        print(f"❌ Multi-file analysis failed: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Multi-file analysis failed: {str(e)}")
 
 
 @app.get("/health")
@@ -326,6 +381,66 @@ async def health_check():
             "slither_integration": "placeholder_ready"  # Your friend can update this
         }
     }
+
+
+@app.post("/debug-upload")
+async def debug_upload(files: List[UploadFile] = File(...)):
+    """Debug endpoint to test file upload without running analysis"""
+    try:
+        print(f"🔍 Debug: Received {len(files)} files")
+        
+        file_info = []
+        for i, file in enumerate(files):
+            # Read file content
+            content = await read_uploaded_file(file)
+            file_info.append({
+                "index": i,
+                "filename": file.filename,
+                "content_type": file.content_type,
+                "size": len(content),
+                "first_100_chars": content[:100] if content else "No content"
+            })
+            print(f"📁 File {i}: {file.filename} ({len(content)} chars)")
+        
+        return {
+            "message": "File upload test successful",
+            "files_received": len(files),
+            "file_details": file_info
+        }
+    except Exception as e:
+        print(f"❌ Debug upload failed: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Debug upload failed: {str(e)}")
+
+
+@app.get("/test-slither")
+async def test_slither():
+    """Test endpoint for Slither integration - your friend can use this to test"""
+    test_code = """
+pragma solidity ^0.8.0;
+contract TestContract {
+    mapping(address => uint256) public balances;
+    
+    function withdraw(uint256 amount) public {
+        require(balances[msg.sender] >= amount);
+        (bool success, ) = msg.sender.call{value: amount}("");
+        require(success);
+        balances[msg.sender] -= amount; // Reentrancy vulnerability!
+    }
+}
+"""
+    
+    try:
+        slither_results = run_slither_analysis(test_code)
+        return {
+            "message": "Slither test successful",
+            "test_code_length": len(test_code),
+            "slither_results": slither_results
+        }
+    except Exception as e:
+        return {
+            "message": "Slither test failed",
+            "error": str(e)
+        }
 
 
 if __name__ == "__main__":
