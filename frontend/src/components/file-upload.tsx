@@ -7,12 +7,16 @@ import { Button } from "@/components/ui/button"
 import { Upload, FileText, X } from "lucide-react"
 
 interface FileUploadProps {
-  onFileUpload: (file: File) => void
+  onFileUpload: (files: File[]) => void
+  onFileRemove: (file: File) => void
+  uploadedFiles: File[]
+  multiple?: boolean
+  maxFiles?: number
+  maxTotalSize?: number
 }
 
-export function FileUpload({ onFileUpload }: FileUploadProps) {
+export function FileUpload({ onFileUpload, onFileRemove, uploadedFiles, multiple = false, maxFiles = 10, maxTotalSize = 10 * 1024 * 1024 }: FileUploadProps) {
   const [dragActive, setDragActive] = useState(false)
-  const [uploadedFile, setUploadedFile] = useState<File | null>(null)
 
   const handleDrag = useCallback((e: React.DragEvent) => {
     e.preventDefault()
@@ -29,15 +33,13 @@ export function FileUpload({ onFileUpload }: FileUploadProps) {
       e.preventDefault()
       e.stopPropagation()
       setDragActive(false)
-
-      if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-        const file = e.dataTransfer.files[0]
-        if (file.name.endsWith(".sol") || file.type === "text/plain") {
-          setUploadedFile(file)
-          onFileUpload(file)
-        } else {
-          alert("Please upload a Solidity (.sol) file")
+      if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+        const files = Array.from(e.dataTransfer.files).filter(file => file.name.endsWith(".sol") || file.type === "text/plain")
+        if (files.length === 0) {
+          alert("Please upload Solidity (.sol) files")
+          return
         }
+        onFileUpload(files)
       }
     },
     [onFileUpload],
@@ -45,22 +47,17 @@ export function FileUpload({ onFileUpload }: FileUploadProps) {
 
   const handleFileInput = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
-      if (e.target.files && e.target.files[0]) {
-        const file = e.target.files[0]
-        if (file.name.endsWith(".sol") || file.type === "text/plain") {
-          setUploadedFile(file)
-          onFileUpload(file)
-        } else {
-          alert("Please upload a Solidity (.sol) file")
+      if (e.target.files && e.target.files.length > 0) {
+        const files = Array.from(e.target.files).filter(file => file.name.endsWith(".sol") || file.type === "text/plain")
+        if (files.length === 0) {
+          alert("Please upload Solidity (.sol) files")
+          return
         }
+        onFileUpload(files)
       }
     },
     [onFileUpload],
   )
-
-  const removeFile = () => {
-    setUploadedFile(null)
-  }
 
   return (
     <div className="w-full">
@@ -76,6 +73,7 @@ export function FileUpload({ onFileUpload }: FileUploadProps) {
         <input
           type="file"
           accept=".sol,.txt"
+          multiple={multiple}
           onChange={handleFileInput}
           className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
         />
@@ -86,34 +84,35 @@ export function FileUpload({ onFileUpload }: FileUploadProps) {
           </div>
 
           <div>
-            <h3 className="text-lg font-semibold text-slate-900 mb-2">Upload Smart Contract</h3>
-            <p className="text-slate-600 mb-4">Drag and drop your .sol file here, or click to browse</p>
-
+            <h3 className="text-lg font-semibold text-slate-900 mb-2">Upload Smart Contract(s)</h3>
+            <p className="text-slate-600 mb-4">Drag and drop your .sol files here, or click to browse</p>
             <Button variant="outline" className="bg-white text-emerald-600 border-emerald-600 hover:bg-emerald-50">
-              Choose File
+              Choose File(s)
             </Button>
           </div>
 
-          <div className="text-xs text-slate-500">Supported formats: .sol • Max size: 10MB</div>
+          <div className="text-xs text-slate-500">Supported formats: .sol • Max files: {maxFiles} • Max total size: {(maxTotalSize/1024/1024).toFixed(2)}MB</div>
         </div>
       </div>
-
-      {uploadedFile && (
-        <div className="mt-4 p-4 bg-slate-50 rounded-lg border">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-3">
-              <FileText className="h-5 w-5 text-slate-600" />
-              <div>
-                <p className="font-medium text-slate-900">{uploadedFile.name}</p>
-                <p className="text-sm text-slate-600">{(uploadedFile.size / 1024).toFixed(1)} KB</p>
-              </div>
-            </div>
-            <Button variant="ghost" size="sm" onClick={removeFile} className="text-slate-500 hover:text-slate-700">
-              <X className="h-4 w-4" />
-            </Button>
-          </div>
+      {/* Uploaded Files List */}
+      {uploadedFiles.length > 0 && (
+        <div className="mt-4">
+          <ul className="divide-y divide-slate-200">
+            {uploadedFiles.map((file) => (
+              <li key={file.name + file.size} className="flex items-center justify-between py-2">
+                <div className="flex items-center space-x-2">
+                  <FileText className="h-5 w-5 text-emerald-600" />
+                  <span className="text-slate-800 text-sm">{file.name} <span className="text-slate-400">({(file.size/1024).toFixed(1)} KB)</span></span>
+                </div>
+                <Button variant="ghost" size="sm" onClick={() => onFileRemove(file)} className="text-slate-500 hover:text-slate-700">
+                  <X className="h-4 w-4" />
+                </Button>
+              </li>
+            ))}
+          </ul>
         </div>
       )}
     </div>
   )
 }
+

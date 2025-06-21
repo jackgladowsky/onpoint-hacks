@@ -8,16 +8,36 @@ import { Upload, FileText, Brain, Shield, Download, AlertTriangle, CheckCircle, 
 import { FileUpload } from "@/components/file-upload"
 
 export default function LandingPage() {
-  const [uploadedFile, setUploadedFile] = useState<File | null>(null)
+  const [uploadedFiles, setUploadedFiles] = useState<File[]>([])
+  const MAX_FILES = 10
+  const MAX_TOTAL_SIZE = 10 * 1024 * 1024 // 10MB
 
-  const handleFileUpload = (file: File) => {
-    setUploadedFile(file)
+  const getTotalSize = (files: File[]) => files.reduce((acc, file) => acc + file.size, 0)
+
+  const handleFileUpload = (files: File[]) => {
+    let newFiles = [...uploadedFiles]
+    for (const file of files) {
+      if (newFiles.length >= MAX_FILES) break
+      // Prevent duplicates by name and size
+      if (!newFiles.some(f => f.name === file.name && f.size === file.size)) {
+        newFiles.push(file)
+      }
+    }
+    // Enforce total size limit
+    while (getTotalSize(newFiles) > MAX_TOTAL_SIZE && newFiles.length > 0) {
+      newFiles.pop()
+    }
+    setUploadedFiles(newFiles)
+  }
+
+  const handleFileRemove = (fileToRemove: File) => {
+    setUploadedFiles(files => files.filter(f => !(f.name === fileToRemove.name && f.size === fileToRemove.size)))
   }
 
   const startAnalysis = () => {
-    if (uploadedFile) {
+    if (uploadedFiles.length > 0) {
       // Here you would typically navigate to analysis page or start the process
-      console.log("Starting analysis for:", uploadedFile.name)
+      console.log("Starting analysis for:", uploadedFiles.map(f => f.name))
     }
   }
 
@@ -148,12 +168,19 @@ export default function LandingPage() {
 
           <Card className="border-2 border-dashed border-emerald-200 bg-white/50 backdrop-blur-sm">
             <CardContent className="p-8">
-              <FileUpload onFileUpload={handleFileUpload} />
+              <FileUpload 
+                onFileUpload={handleFileUpload} 
+                onFileRemove={handleFileRemove} 
+                multiple={true}
+                maxFiles={MAX_FILES}
+                maxTotalSize={MAX_TOTAL_SIZE}
+                uploadedFiles={uploadedFiles}
+              />
             </CardContent>
           </Card>
 
           {/* Start Analysis Button */}
-          {uploadedFile && (
+          {uploadedFiles.length > 0 && (
             <div className="mt-8 text-center">
               <Button 
                 onClick={startAnalysis} 
@@ -162,6 +189,30 @@ export default function LandingPage() {
               >
                 Start Analysis
               </Button>
+            </div>
+          )}
+
+          {/* Uploaded Files List */}
+          {uploadedFiles.length > 0 && (
+            <div className="mt-6 flex flex-col items-center">
+              <div className="w-full max-w-lg">
+                <ul className="divide-y divide-slate-200">
+                  {uploadedFiles.map((file, idx) => (
+                    <li key={file.name + file.size} className="flex items-center justify-between py-2">
+                      <div className="flex items-center space-x-2">
+                        <FileText className="h-5 w-5 text-emerald-600" />
+                        <span className="text-slate-800 text-sm">{file.name} <span className="text-slate-400">({(file.size/1024).toFixed(1)} KB)</span></span>
+                      </div>
+                      <Button variant="outline" size="sm" onClick={() => handleFileRemove(file)}>
+                        Remove
+                      </Button>
+                    </li>
+                  ))}
+                </ul>
+                <div className="text-xs text-slate-500 mt-2 text-right">
+                  {uploadedFiles.length}/{MAX_FILES} files, {(getTotalSize(uploadedFiles)/1024/1024).toFixed(2)} MB / 10.00 MB
+                </div>
+              </div>
             </div>
           )}
 
