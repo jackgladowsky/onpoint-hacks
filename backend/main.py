@@ -12,6 +12,10 @@ from config import settings
 from services.llm_service import LLMService
 from utils.file_utils import read_uploaded_file
 
+import subprocess
+import os
+import re
+
 # Initialize FastAPI app
 app = FastAPI(
     title="Smart Contract Auditor",
@@ -34,7 +38,7 @@ app.add_middleware(
 llm_service = LLMService()
 
 
-def run_slither_analysis(solidity_code: str) -> dict:
+def run_slither_analysis(file: UploadFile = File(...)) -> dict:
     """
     Run Slither static analysis on the Solidity code
     
@@ -47,6 +51,62 @@ def run_slither_analysis(solidity_code: str) -> dict:
         Dictionary with Slither analysis results
     """
     # PLACEHOLDER - Your friend will replace this with actual Slither integration
+
+    def get_declared_solc_version(filename):
+        # Look for a line like: pragma solidity ^0.8.0;
+        m = re.match(r'^\s*pragma\s+solidity\s+([^;]+);', filename, flags=re.MULTILINE)
+        if m:
+            if m.group(1).strip()[0] == '^':
+                return m.group(1).strip()[1:]
+            else:
+                return m.group(1).strip()
+        return None
+    
+    declared = get_declared_solc_version(file.filename)
+    print(declared)
+
+    # Inherit your current environment and add FORCE_COLOR
+    env = os.environ.copy()
+    env["FORCE_COLOR"] = "1"
+
+
+    # Set solc version
+    try:
+        result = subprocess.run(
+            ['solc-select', 'use', declared, '--always-install'],
+            capture_output=True,
+            text=True,
+            env=env,
+            check=True
+        )
+
+        print("=== STDOUT ===")
+        print(result.stdout or "[No stdout output]")
+        print("=== STDERR ===")
+        print(result.stderr or "[No stderr output]")
+
+    except subprocess.CalledProcessError as e:
+        print("❌ Error:", e.stderr)
+
+    try:
+        result = subprocess.run(
+            ['slither', file.filename, '--print', 'human-summary,contract-summary,data-dependency,inheritance,vars-and-auth,variable-order'],
+            capture_output=True,
+            text=True,
+            env=env,
+            check=True
+        )
+
+        print("=== STDOUT ===")
+        print(result.stdout or "[No stdout output]")
+        print("=== STDERR ===")
+        print(result.stderr or "[No stderr output]")
+
+    except subprocess.CalledProcessError as e:
+        print("❌ Error:", e.stderr)
+    
+
+
     return {
         "findings": [
             {
