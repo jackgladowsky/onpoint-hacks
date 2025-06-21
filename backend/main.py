@@ -37,7 +37,7 @@ app.add_middleware(
 llm_service = LLMService()
 
 
-def run_slither_analysis(solidity_code: str) -> dict:
+def run_slither_analysis(file: UploadFile = File(...)) -> dict:
     """
     Run Slither static analysis on the Solidity code
     
@@ -51,9 +51,9 @@ def run_slither_analysis(solidity_code: str) -> dict:
     """
     # PLACEHOLDER - Your friend will replace this with actual Slither integration
 
-    def get_declared_solc_version(contents):
+    def get_declared_solc_version(filename):
         # Look for a line like: pragma solidity ^0.8.0;
-        m = re.match(r'^\s*pragma\s+solidity\s+([^;]+);', contents, flags=re.MULTILINE)
+        m = re.match(r'^\s*pragma\s+solidity\s+([^;]+);', filename, flags=re.MULTILINE)
         if m:
             if m.group(1).strip()[0] == '^':
                 return m.group(1).strip()[1:]
@@ -61,7 +61,7 @@ def run_slither_analysis(solidity_code: str) -> dict:
                 return m.group(1).strip()
         return None
     
-    declared = get_declared_solc_version(solidity_code)
+    declared = get_declared_solc_version(file.filename)
     print(declared)
 
     # Inherit your current environment and add FORCE_COLOR
@@ -89,7 +89,7 @@ def run_slither_analysis(solidity_code: str) -> dict:
 
     try:
         result = subprocess.run(
-            ['slither', filename, '--print', 'human-summary,contract-summary,data-dependency,inheritance,vars-and-auth,variable-order'],
+            ['slither', file.filename, '--print', 'human-summary,contract-summary,data-dependency,inheritance,vars-and-auth,variable-order'],
             capture_output=True,
             text=True,
             env=env,
