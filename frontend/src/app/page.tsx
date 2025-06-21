@@ -149,27 +149,21 @@ export default function LandingPage() {
           <Card className="border-2 border-dashed border-emerald-200 bg-white/50 backdrop-blur-sm">
             <CardContent className="p-8">
               <FileUpload onFileUpload={handleFileUpload} />
-
-              {uploadedFile && (
-                <div className="mt-6 p-4 bg-emerald-50 rounded-lg border border-emerald-200">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center space-x-3">
-                      <CheckCircle className="h-5 w-5 text-emerald-600" />
-                      <div>
-                        <p className="font-medium text-emerald-900">{uploadedFile.name}</p>
-                        <p className="text-sm text-emerald-600">
-                          {(uploadedFile.size / 1024).toFixed(1)} KB • Ready for analysis
-                        </p>
-                      </div>
-                    </div>
-                    <Button onClick={startAnalysis} className="bg-emerald-600 hover:bg-emerald-700 text-white">
-                      Start Analysis
-                    </Button>
-                  </div>
-                </div>
-              )}
             </CardContent>
           </Card>
+
+          {/* Start Analysis Button */}
+          {uploadedFile && (
+            <div className="mt-8 text-center">
+              <Button 
+                onClick={startAnalysis} 
+                size="lg"
+                className="bg-emerald-600 hover:bg-emerald-700 text-white px-8 py-3 text-lg font-semibold"
+              >
+                Start Analysis
+              </Button>
+            </div>
+          )}
 
           {/* Important Notice */}
           <div className="mt-8 p-4 bg-amber-50 border border-amber-200 rounded-lg">
