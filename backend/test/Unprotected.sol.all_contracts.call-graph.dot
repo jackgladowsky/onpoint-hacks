@@ -1,0 +1,13 @@
+strict digraph {
+rankdir="LR"
+node [shape=box]
+subgraph cluster_46_Unprotected {
+label = "Unprotected"
+"46_Unprotected" [label="Unprotected"]
+"46_changeOwner" [label="changeOwner"]
+"46_changeOwner_fixed" [label="changeOwner_fixed"]
+"46_changeOwner_fixed" -> "46_onlyowner"
+}subgraph cluster_solidity {
+label = "[Solidity]"
+}
+}

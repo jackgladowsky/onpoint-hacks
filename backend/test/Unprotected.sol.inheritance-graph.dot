@@ -1,0 +1,4 @@
+digraph "" {
+c46_Unprotected[shape="box"label=< <TABLE border="0"><TR><TD align="center"><B>Unprotected</B></TD></TR><TR><TD align="left"><I>Public Functions:</I></TD></TR><TR><TD align="left">    changeOwner(address)</TD></TR><TR><TD align="left">    changeOwner_fixed(address)</TD></TR><TR><TD align="left"><I>Modifiers:</I></TD></TR><TR><TD align="left">    onlyowner()</TD></TR><TR><TD align="left"><I>Private Variables:</I></TD></TR><TR><TD align="left">    owner</TD></TR></TABLE> >];
+
+}
