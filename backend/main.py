@@ -208,14 +208,14 @@ async def analyze_contract(files: List[UploadFile] = File(...)):
         
         # Generate summary report
         summary_report = f"""Analysis Summary:
-- Analyzed {len(files)} contracts using complete pipeline (Slither + LLM)
-- Average Security Score: {average_score:.1f}/100
-- Overall Project Risk: {overall_project_risk}
-- Total Vulnerabilities: {len(all_vulnerabilities)}
-  - High: {total_risk_breakdown['high']}
-  - Medium: {total_risk_breakdown['medium']}
-  - Low: {total_risk_breakdown['low']}
-"""
+        - Analyzed {len(files)} contracts using complete pipeline (Slither + LLM)
+        - Average Security Score: {average_score:.1f}/100
+        - Overall Project Risk: {overall_project_risk}
+        - Total Vulnerabilities: {len(all_vulnerabilities)}
+        - High: {total_risk_breakdown['high']}
+        - Medium: {total_risk_breakdown['medium']}
+        - Low: {total_risk_breakdown['low']}
+        """
         
         # Format and return results in the expected format
         result = {
@@ -249,153 +249,6 @@ async def analyze_contract(files: List[UploadFile] = File(...)):
         raise HTTPException(status_code=500, detail=f"Analysis failed: {str(e)}")
 
 
-@app.post("/analyze-multiple")
-async def analyze_multiple_contracts(files: List[UploadFile] = File(...)):
-    """
-    Analyze multiple smart contracts in a single request
-    
-    This endpoint handles the analysis of multiple contracts:
-    1. Validates all uploaded files
-    2. Analyzes each contract individually
-    3. Provides a combined risk assessment
-    4. Returns individual and aggregate results
-    
-    Args:
-        files: List of Solidity files (.sol) to analyze
-        
-    Returns:
-        Comprehensive analysis results for all contracts with aggregate metrics
-    """
-    try:
-        # Validate number of files
-        if len(files) > 10:
-            raise HTTPException(status_code=400, detail="Maximum 10 files allowed per request")
-        
-        print(f"📁 Analyzing {len(files)} files...")
-        
-        # Analyze each file
-        individual_results = []
-        all_vulnerabilities = []
-        total_score = 0
-        
-        for idx, file in enumerate(files):
-            print(f"🔍 Analyzing file {idx + 1}/{len(files)}: {file.filename}")
-            
-            try:
-                # Read and validate file
-                solidity_code = await read_uploaded_file(file)
-                
-                # Run Slither analysis
-                slither_results = run_slither_analysis(solidity_code)
-                
-                # Run initial LLM analysis
-                first_llm_analysis = await llm_service.first_analysis(solidity_code)
-                
-                # Run final combined analysis
-                slither_data_str = json.dumps(slither_results)
-                final_analysis = await llm_service.final_analysis(slither_data_str, first_llm_analysis)
-                
-                # Extract vulnerabilities
-                vulnerabilities = final_analysis.get("vulnerabilities", [])
-                security_score = final_analysis.get("security_score", 50)
-                
-                # Add file context to vulnerabilities
-                for vuln in vulnerabilities:
-                    vuln["file_name"] = file.filename
-                
-                all_vulnerabilities.extend(vulnerabilities)
-                total_score += security_score
-                
-                # Store individual result
-                individual_results.append({
-                    "file_name": file.filename,
-                    "security_score": security_score,
-                    "overall_risk": final_analysis.get("overall_risk", "MEDIUM"),
-                    "vulnerabilities": vulnerabilities,
-                    "vulnerability_count": len(vulnerabilities),
-                    "risk_breakdown": {
-                        "high": len([v for v in vulnerabilities if v.get("severity") == "HIGH"]),
-                        "medium": len([v for v in vulnerabilities if v.get("severity") == "MEDIUM"]),
-                        "low": len([v for v in vulnerabilities if v.get("severity") == "LOW"])
-                    }
-                })
-                
-            except Exception as e:
-                print(f"❌ Failed to analyze {file.filename}: {str(e)}")
-                individual_results.append({
-                    "file_name": file.filename,
-                    "error": str(e),
-                    "security_score": 0,
-                    "overall_risk": "ERROR",
-                    "vulnerabilities": [],
-                    "vulnerability_count": 0,
-                    "risk_breakdown": {"high": 0, "medium": 0, "low": 0}
-                })
-        
-        # Calculate aggregate metrics
-        successful_analyses = [r for r in individual_results if "error" not in r]
-        average_score = total_score / len(successful_analyses) if successful_analyses else 0
-        
-        # Aggregate risk breakdown
-        total_risk_breakdown = {
-            "high": sum(r["risk_breakdown"]["high"] for r in individual_results),
-            "medium": sum(r["risk_breakdown"]["medium"] for r in individual_results),
-            "low": sum(r["risk_breakdown"]["low"] for r in individual_results)
-        }
-        
-        # Determine overall project risk
-        if total_risk_breakdown["high"] > 0:
-            overall_project_risk = "HIGH"
-        elif total_risk_breakdown["medium"] > 2:
-            overall_project_risk = "MEDIUM-HIGH"
-        elif total_risk_breakdown["medium"] > 0:
-            overall_project_risk = "MEDIUM"
-        elif total_risk_breakdown["low"] > 2:
-            overall_project_risk = "LOW-MEDIUM"
-        else:
-            overall_project_risk = "LOW"
-        
-        # Generate summary report
-        summary_report = f"""Project Analysis Summary:
-- Analyzed {len(files)} contracts
-- Average Security Score: {average_score:.1f}/100
-- Overall Project Risk: {overall_project_risk}
-- Total Vulnerabilities: {len(all_vulnerabilities)}
-  - High: {total_risk_breakdown['high']}
-  - Medium: {total_risk_breakdown['medium']}
-  - Low: {total_risk_breakdown['low']}
-"""
-        
-        result = {
-            "summary": summary_report,
-            "project_metrics": {
-                "total_files": len(files),
-                "successful_analyses": len(successful_analyses),
-                "failed_analyses": len(files) - len(successful_analyses),
-                "average_security_score": round(average_score, 1),
-                "overall_project_risk": overall_project_risk,
-                "total_vulnerabilities": len(all_vulnerabilities),
-                "aggregate_risk_breakdown": total_risk_breakdown
-            },
-            "individual_results": individual_results,
-            "all_vulnerabilities": all_vulnerabilities,
-            "timestamp": datetime.now().isoformat(),
-            "analysis_details": {
-                "llm_model_used": settings.PRIMARY_MODEL,
-                "files_analyzed": [f.filename for f in files]
-            }
-        }
-        
-        print("🎉 Multi-file analysis completed successfully!")
-        return result
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        print(f"❌ Multi-file analysis failed: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Multi-file analysis failed: {str(e)}")
-
-
 @app.get("/health")
 async def health_check():
     """Health check endpoint for monitoring service status"""
@@ -409,66 +262,6 @@ async def health_check():
             "slither_integration": "placeholder_ready"  # Your friend can update this
         }
     }
-
-
-@app.post("/debug-upload")
-async def debug_upload(files: List[UploadFile] = File(...)):
-    """Debug endpoint to test file upload without running analysis"""
-    try:
-        print(f"🔍 Debug: Received {len(files)} files")
-        
-        file_info = []
-        for i, file in enumerate(files):
-            # Read file content
-            content = await read_uploaded_file(file)
-            file_info.append({
-                "index": i,
-                "filename": file.filename,
-                "content_type": file.content_type,
-                "size": len(content),
-                "first_100_chars": content[:100] if content else "No content"
-            })
-            print(f"📁 File {i}: {file.filename} ({len(content)} chars)")
-        
-        return {
-            "message": "File upload test successful",
-            "files_received": len(files),
-            "file_details": file_info
-        }
-    except Exception as e:
-        print(f"❌ Debug upload failed: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Debug upload failed: {str(e)}")
-
-
-@app.get("/test-slither")
-async def test_slither():
-    """Test endpoint for Slither integration - your friend can use this to test"""
-    test_code = """
-pragma solidity ^0.8.0;
-contract TestContract {
-    mapping(address => uint256) public balances;
-    
-    function withdraw(uint256 amount) public {
-        require(balances[msg.sender] >= amount);
-        (bool success, ) = msg.sender.call{value: amount}("");
-        require(success);
-        balances[msg.sender] -= amount; // Reentrancy vulnerability!
-    }
-}
-"""
-    
-    try:
-        slither_results = run_slither_analysis(test_code)
-        return {
-            "message": "Slither test successful",
-            "test_code_length": len(test_code),
-            "slither_results": slither_results
-        }
-    except Exception as e:
-        return {
-            "message": "Slither test failed",
-            "error": str(e)
-        }
 
 
 if __name__ == "__main__":
