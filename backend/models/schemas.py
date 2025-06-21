@@ -13,6 +13,15 @@ class SlitherResult(BaseModel):
     severity_counts: Dict[str, int] = Field(..., description="Count of vulnerabilities by severity")
 
 
+class CodeFix(BaseModel):
+    """Schema for vulnerable code and fix snippets"""
+    vulnerability_title: str = Field(..., description="Title of the vulnerability")
+    vulnerable_code: str = Field(..., description="Code snippet showing the vulnerability")
+    fixed_code: str = Field(..., description="Code snippet with the fix applied")
+    explanation: str = Field(..., description="Explanation of what was changed and why")
+    line_numbers: List[int] = Field(default=[], description="Line numbers where vulnerability was found")
+
+
 class VulnerabilityReport(BaseModel):
     """Individual vulnerability report"""
     title: str = Field(..., description="Vulnerability name/title")
@@ -21,6 +30,7 @@ class VulnerabilityReport(BaseModel):
     fix_suggestion: str = Field(..., description="Specific recommendation to fix the issue")
     score_impact: int = Field(..., description="Impact on security score")
     line_numbers: Optional[List[int]] = Field(default=None, description="Affected code lines")
+    code_fix: Optional[CodeFix] = Field(default=None, description="Vulnerable code snippet and fix")
 
 
 class AnalysisResult(BaseModel):

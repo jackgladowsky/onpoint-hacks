@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import { CodeSnippet } from '@/components/code-snippet'
 import { 
   ArrowLeft, 
   FileCode, 
@@ -416,27 +417,33 @@ ${analysisResult.all_vulnerabilities.map(v =>
 
                           {/* Vulnerabilities */}
                           {result.vulnerabilities.length > 0 ? (
-                            <div className="space-y-4">
+                            <div className="space-y-6">
                               <h4 className="font-semibold text-slate-900">Vulnerabilities Found</h4>
                               {result.vulnerabilities.map((vuln, index) => (
-                                <div key={index} className="border border-slate-200 rounded-lg p-4 bg-white">
-                                  <div className="flex items-start justify-between mb-3">
-                                    <div className="flex items-center space-x-2">
-                                      <Badge className={getSeverityColor(vuln.severity)}>
-                                        {vuln.severity.toUpperCase()}
-                                      </Badge>
-                                      <h5 className="font-medium text-slate-900">{vuln.title}</h5>
-                                    </div>
-                                  </div>
-                                  <p className="text-slate-700 mb-3">{vuln.description}</p>
-                                  {vuln.fix_suggestion && (
-                                    <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3">
-                                      <div className="flex items-center space-x-2 mb-2">
-                                        <CheckCircle className="h-4 w-4 text-emerald-600" />
-                                        <span className="text-emerald-800 font-medium text-sm">Recommended Fix</span>
+                                <div key={index} className="space-y-4">
+                                  <div className="border border-slate-200 rounded-lg p-4 bg-white">
+                                    <div className="flex items-start justify-between mb-3">
+                                      <div className="flex items-center space-x-2">
+                                        <Badge className={getSeverityColor(vuln.severity)}>
+                                          {vuln.severity.toUpperCase()}
+                                        </Badge>
+                                        <h5 className="font-medium text-slate-900">{vuln.title}</h5>
                                       </div>
-                                      <p className="text-emerald-700 text-sm">{vuln.fix_suggestion}</p>
                                     </div>
+                                    <p className="text-slate-700 mb-3">{vuln.description}</p>
+                                    {vuln.fix_suggestion && (
+                                      <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3 mb-4">
+                                        <div className="flex items-center space-x-2 mb-2">
+                                          <CheckCircle className="h-4 w-4 text-emerald-600" />
+                                          <span className="text-emerald-800 font-medium text-sm">Recommended Fix</span>
+                                        </div>
+                                        <p className="text-emerald-700 text-sm">{vuln.fix_suggestion}</p>
+                                      </div>
+                                    )}
+                                  </div>
+                                  {/* Code Fix Section */}
+                                  {vuln.code_fix && (
+                                    <CodeSnippet codeFix={vuln.code_fix} className="ml-4" />
                                   )}
                                 </div>
                               ))}
