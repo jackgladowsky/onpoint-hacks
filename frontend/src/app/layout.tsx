@@ -13,8 +13,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "SecureAudit AI",
-  description: "SecureAudit AI",
+  title: "SolidAudit AI",
+  description: "SolidAudit AI",
 };
 
 export default function RootLayout({

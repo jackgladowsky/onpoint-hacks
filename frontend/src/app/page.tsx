@@ -111,7 +111,7 @@ export default function LandingPage() {
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-2">
               <Shield className="h-8 w-8 text-emerald-600" />
-              <span className="text-2xl font-bold text-slate-900">SecureAudit AI</span>
+              <span className="text-2xl font-bold text-slate-900">SolidAudit AI</span>
             </div>
             <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200">
               Free Analysis
@@ -124,15 +124,16 @@ export default function LandingPage() {
       <section className="py-20 px-4">
         <div className="container mx-auto text-center max-w-4xl">
           <div className="mb-6">
-            <Badge className="bg-emerald-100 text-emerald-800 hover:bg-emerald-100">AI-Powered Security Analysis</Badge>
+            <Badge className="bg-emerald-100 text-emerald-800 hover:bg-emerald-100">AI-Powered Solidity Audits</Badge>
           </div>
-          <h1 className="text-5xl md:text-6xl font-bold text-slate-900 mb-6 leading-tight">
-            Smart Contract
-            <span className="text-emerald-600"> Security Audit</span>
+          <h1 className="text-5xl md:text-5xl font-bold text-slate-900 mb-6 leading-tight">
+            Smart Contract Vulnerability
+            <span className="text-emerald-600"> Analysis</span>
           </h1>
           <p className="text-xl text-slate-600 mb-8 leading-relaxed">
-            Upload your smart contract and get an instant AI-powered security analysis. Our tool combines static code
-            analysis with advanced LLM insights to identify vulnerabilities and provide actionable recommendations.
+            Upload your Solidity smart contracts and get an instant AI-powered security audit. Our tool combines
+            comprehensive Static Code Analysis (SCA) with advanced Large Language Model (LLM) insights to identify
+            vulnerabilities and provide actionable recommendations.
           </p>
           <div className="flex items-center justify-center space-x-4 text-sm text-slate-500 mb-12">
             <div className="flex items-center space-x-1">
@@ -176,7 +177,8 @@ export default function LandingPage() {
               </CardHeader>
               <CardContent className="text-center">
                 <CardDescription className="text-base">
-                  Upload your Solidity smart contract file (.sol). We support contracts up to 10MB in size.
+                  Upload your Solidity smart contract files (.sol). Our tool supports multiple files and contracts up to
+                  10MB in total size.
                 </CardDescription>
               </CardContent>
             </Card>
@@ -193,8 +195,8 @@ export default function LandingPage() {
               </CardHeader>
               <CardContent className="text-center">
                 <CardDescription className="text-base">
-                  Our system runs static code analysis and feeds your contract to advanced AI models for comprehensive
-                  security review.
+                  Our system performs deep Static Code Analysis (SCA) and leverages advanced Large Language Models
+                  (LLMs) for a comprehensive security review of your code.
                 </CardDescription>
               </CardContent>
             </Card>
@@ -335,17 +337,19 @@ export default function LandingPage() {
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
             <div className="p-6 rounded-lg border border-slate-200 hover:border-emerald-200 transition-colors">
               <Shield className="h-8 w-8 text-emerald-600 mb-4" />
-              <h3 className="font-semibold text-slate-900 mb-2">Vulnerability Detection</h3>
+              <h3 className="font-semibold text-slate-900 mb-2">SCA Vulnerability Detection</h3>
               <p className="text-slate-600 text-sm">
-                Identify common security vulnerabilities like reentrancy, overflow, and access control issues.
+                Our static analysis engine identifies a wide range of common Solidity vulnerabilities, including
+                reentrancy, integer overflows, and access control issues.
               </p>
             </div>
 
             <div className="p-6 rounded-lg border border-slate-200 hover:border-emerald-200 transition-colors">
               <Brain className="h-8 w-8 text-emerald-600 mb-4" />
-              <h3 className="font-semibold text-slate-900 mb-2">AI-Powered Insights</h3>
+              <h3 className="font-semibold text-slate-900 mb-2">Advanced LLM Audit</h3>
               <p className="text-slate-600 text-sm">
-                Advanced language models analyze your code for complex patterns and potential issues.
+                Our fine-tuned LLMs analyze your code for complex logic flaws and subtle vulnerabilities that
+                traditional static analysis might miss.
               </p>
             </div>
 
@@ -389,11 +393,11 @@ export default function LandingPage() {
         <div className="container mx-auto text-center">
           <div className="flex items-center justify-center space-x-2 mb-4">
             <Shield className="h-6 w-6 text-emerald-400" />
-            <span className="text-xl font-bold">SecureAudit AI</span>
+            <span className="text-xl font-bold">SolidAudit AI</span>
           </div>
-          <p className="text-slate-400 mb-4">AI-powered smart contract security analysis tool</p>
+          <p className="text-slate-400 mb-4">AI-powered security analysis for Solidity smart contracts.</p>
           <p className="text-sm text-slate-500">
-            © 2024 SecureAudit AI. Built for the security of decentralized applications.
+            © 2025 SolidAudit AI. Built for the security of decentralized applications.
           </p>
         </div>
       </footer>
