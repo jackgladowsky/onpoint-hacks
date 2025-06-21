@@ -36,11 +36,70 @@ export default function LandingPage() {
     setUploadedFiles(files => files.filter(f => !(f.name === fileToRemove.name && f.size === fileToRemove.size)))
   }
 
-  const startAnalysis = () => {
+  const startAnalysis = async () => {
     if (uploadedFiles.length > 0) {
-      // Navigate to analysis page with file information
-      const fileNames = uploadedFiles.map(f => f.name).join(',')
-      router.push(`/analysis?files=${encodeURIComponent(fileNames)}`)
+      try {
+        console.log('🚀 Starting analysis with', uploadedFiles.length, 'files');
+        console.log('📁 Files to process:', uploadedFiles.map(f => ({ name: f.name, size: f.size })));
+        
+        // Convert files to base64 and store in sessionStorage
+        console.log('🔄 Converting files to base64...');
+        const fileData = await Promise.all(
+          uploadedFiles.map(async (file, index) => {
+            console.log(`📄 Processing file ${index + 1}/${uploadedFiles.length}: ${file.name}`);
+            
+            const content = await new Promise<string>((resolve, reject) => {
+              const reader = new FileReader()
+              reader.onload = () => {
+                const result = reader.result as string;
+                console.log(`✅ File ${file.name} converted to base64 (${result.length} chars)`);
+                resolve(result);
+              }
+              reader.onerror = () => {
+                console.error(`❌ Failed to read file ${file.name}:`, reader.error);
+                reject(reader.error);
+              }
+              reader.readAsDataURL(file)
+            });
+            
+            return {
+              name: file.name,
+              size: file.size,
+              type: file.type,
+              lastModified: file.lastModified,
+              content: content
+            };
+          })
+        )
+        
+        console.log('✅ All files converted successfully');
+        console.log('💾 Storing files in sessionStorage...');
+        
+        const jsonData = JSON.stringify(fileData);
+        console.log(`📊 SessionStorage data size: ${jsonData.length} characters`);
+        
+        sessionStorage.setItem('analysisFiles', jsonData);
+        
+        // Verify the data was stored
+        const storedData = sessionStorage.getItem('analysisFiles');
+        if (storedData) {
+          console.log('✅ Files successfully stored in sessionStorage');
+          console.log('🔍 Stored data preview:', storedData.substring(0, 200) + '...');
+        } else {
+          console.error('❌ Failed to store files in sessionStorage');
+          alert('Failed to store files. Please try again.');
+          return;
+        }
+        
+        console.log('🧭 Navigating to analysis page...');
+        router.push('/analysis');
+        
+      } catch (error) {
+        console.error('💥 Error in startAnalysis:', error);
+        alert('Failed to process files. Please try again.');
+      }
+    } else {
+      console.warn('⚠️ No files to analyze');
     }
   }
 
@@ -184,7 +243,7 @@ export default function LandingPage() {
 
           {/* Start Analysis Button */}
           {uploadedFiles.length > 0 && (
-            <div className="mt-8 text-center">
+            <div className="mt-8 text-center space-y-4">
               <Button 
                 onClick={startAnalysis} 
                 size="lg"
@@ -192,6 +251,35 @@ export default function LandingPage() {
               >
                 Start Analysis
               </Button>
+              
+              {/* Debug Button - Remove in production */}
+              <div className="text-center">
+                <Button 
+                  onClick={() => {
+                    console.log('🧪 Testing sessionStorage...');
+                    try {
+                      sessionStorage.setItem('test', 'hello');
+                      const testValue = sessionStorage.getItem('test');
+                      console.log('✅ SessionStorage test successful:', testValue);
+                      sessionStorage.removeItem('test');
+                      
+                      // Check current files in sessionStorage
+                      const existingFiles = sessionStorage.getItem('analysisFiles');
+                      console.log('📋 Current analysisFiles in sessionStorage:', existingFiles ? 'Found' : 'Not found');
+                      if (existingFiles) {
+                        console.log('📄 Existing files preview:', existingFiles.substring(0, 200));
+                      }
+                    } catch (error) {
+                      console.error('❌ SessionStorage test failed:', error);
+                    }
+                  }}
+                  variant="outline"
+                  size="sm"
+                  className="ml-4"
+                >
+                  Test SessionStorage
+                </Button>
+              </div>
             </div>
           )}
 

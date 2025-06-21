@@ -21,7 +21,7 @@ class Settings:
     MAX_FILE_SIZE: int = int(os.getenv("MAX_FILE_SIZE", "1048576"))  # 1MB default
     MAX_TOKENS_FIRST_ANALYSIS: int = int(os.getenv("MAX_TOKENS_FIRST_ANALYSIS", "2000"))
     MAX_TOKENS_FINAL_ANALYSIS: int = int(os.getenv("MAX_TOKENS_FINAL_ANALYSIS", "3000"))
-    TEMPERATURE: float = float(os.getenv("TEMPERATURE", "0.1"))
+    TEMPERATURE: float = 0.1
     
     # CORS settings
     ALLOWED_ORIGINS: list = os.getenv("ALLOWED_ORIGINS", "*").split(",")
